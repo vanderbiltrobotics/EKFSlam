@@ -13,21 +13,72 @@ private:
     Eigen::VectorXd x; //Stores current state (pose and location of all elements in map)
     Eigen::MatrixXd cov; //Stores covariance matrix for state vector
 
+    //Stores the components of gravity in the x and y directions of the accelerometers
+    //This accounts for the accelerometer not being completely level
+    Eigen::Vector2d g;
+
+    int n; //Number of stored landmark features
+
+    //TODO make this smarter than a simple distance
+    double newFeatureThreshold; //Distance threshold for classifying observed features as new
+
+
 public:
     //EKFSlammer
     //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
     EKFSlammer();
+
+    //getRotationMat
+    //Returns 2x2 rotation matrix describing the transformation from the world reference frame to the
+    //robot reference frame
+    Eigen::Matrix2d getRotationMat();
+
+    //getRotationMat
+    //Returns 2x2 inverse rotation matrix the transformation from the robot's reference frame to the
+    //world reference frame
+    Eigen::Matrix2d getRotationMatInverse();
+
+    //getMotionModelUncertainty
+    //Returns the uncertainty in the motion model update
+    Eigen::MatrixXf getMotionModelUncertainty();
+
+    //setZeroPosition
+    //Transforms the world reference frame to be zeroed at the new zero position (passed relative to the robot)
+    void setZeroPosition(Eigen::Vector2d &arucoMarker)
+
+    //getTimeStep
+    //Returns the elpased time between time steps
+    int getTimeStep();
 
     //motionModelUpdate
     //Calculates the predicted position of the robot based on the command passed
     //TODO: Add data type for passing command.
     void motionModelUpdate(const double &deltaT, const control &controlIn);
 
-    //getMotionModelUncertainty
-    //Returns the uncertainty in the motion model update
-    Eigen::MatrixXf getMotionModelUncertainty();
 
-    void ekfUpdate(const control &controlIn);
+    //encoderUpdate, arucoUpdate, and kinectUpdate are all methods for the SLAM correction step
+    //These three methods collect data from the respective sensors, calculate the expected observation
+    //calculate the Kalman gain, and update the predicted state
+
+    //encoderUpdate
+    //Encoders return an estimated state for the robot
+    //void encoderUpdate(Eigen::Matrix3d encEstPos);
+
+    void kinectUpdate(Eigen::VectorXd &z);
+
+    void accelerometerUpdate((Eigen::Vector2d &previousS, Eigen::Vector2d &gamma);
+
+    void gyroUpdate(double &previousTheta, double &beta);
+
+    void arucoUpdate(Eigen::Vector2d &arucoMarker);
+
+    void ekfCorrectionStep();
+
+    void ekfUpdate(const control &controlIn,
+                            Eigen::VectorXd &kinectObstacles,
+                            Eigen::Vector2d &gamma,
+                            double &beta,
+                            Eigen::Vector2d &arucoMarker);
 };
 
 
