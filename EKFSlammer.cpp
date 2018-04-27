@@ -4,7 +4,6 @@
 /*TODO LIST
     todo - Add handling for angle rollover
     todo - Determine how to add motion model and measurement noise
-    todo - Add ML approximation for Kinect data association
     todo - Determine velocity term for accelerometer update
     todo - Implement time step
     todo - Implement coordinate transformation for beginning of algorithm execution
@@ -141,6 +140,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
 Eigen::MatrixXf EKFSlammer::getMotionModelUncertainty()
 {
     //TODO: Implement - Requires testing data to build error distribution
+    //TODO: Determine covariance matrix for motion model and return that
 }
 
 
@@ -154,51 +154,110 @@ void EKFSlammer::kinectUpdate(Eigen::VectorXd &z)
     Eigen::MatrixXd Q;
 
 
-
     for(int i = 0; i < z.rows()/2; i++)
     {
-        //TODO Implement ML approximation to associate detected obstacle to stored obstacle
-        //TODO Implement adding new obstacles
+        //zCur stores the current measurement being operated on
+        Eigen::Vector2d zCur;
+        zCur << (z(2*i)),
+                (z(2*i+1));
+        //First step of the update is to use maximum likelihood approximation to determine associate the
+        //measurement of the obstacle to a previously detected obstacle.
 
-//        //Transforming the coordinate system of the observed obstacle from (r,theta) to (x,y)
-//        double observedObstX = x(0) + zt(0)*cos(zt(1) + x(2));
-//        double observedObstY = x(1) + zt(0)*sin(zt(1) + x(2));
+        //Maximum likelihood approximation starts by creating the hypothesis of a new landmark.
+        //The location of the landmark is calculated by transforming the range-bearing measurement to the
+        //world reference frame
+        double newObstX = x(0) + zCur(0)*cos(zCur(1) + x(2));
+        double newObstY = x(1) + zCur(0)*sin(zCur(1) + x(2));
+        int newObstInd = n+1; //Index of the new obstacle is n+1
 
-        //delta stores the difference in expected position of landmark and expected position of robot
-        Eigen::VectorXd delta;
-        delta << (x(2*i) - x(0)),
-                 (x(2*i+1) - x(1));
-
-        double q = delta.dot(delta);
-
-        //h stores the the predicted observation for the given landmark.
+        //h stores the the predicted observation for the given landmark (range bearing).
         Eigen::VectorXd h;
-        h << sqrt(q),
-                (atan2(delta(1),delta(0)) - x(2));
 
         //H is the Jacobian of the h - Jacobian of the predicted sensor measurement
-        //H is a 2x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
-        //jacobian and mapping to the higher dimension is taking place in one step by directly assigning
-        //the values to individual matrix indices.
+        //H is a 2x5 matrix that gets mapped to a higher dimensional matrix.
         Eigen::MatrixXd H = Eigen::MatrixXd::Zero(2,cov.rows());
-        H(0,0) = -1*delta(0)/h(0);
-        H(0,1) = -1*delta(1)/h(0);
-        //H(0,2) = 0; In here just for readability
-        H(0,3+2*i) = delta(0)/h(0);
-        H(0,4+2*i) = delta(1)/h(0);
 
-        H(1,0) = delta(1)/q;
-        H(1,1) = -1*delta(0)/q;
-        H(1,2) = -1*q;
-        H(1,3+2*i) = -1*delta(1)/q;
-        H(1,4+2*i) = delta(0)/q;
+        //Psi stores the sensor error term for the Kalman gain
+        Eigen::MatrixXd psi = Eigen::MatrixXd::Zero(Q.rows(), Q.cols());
+        //Pi stores the Mahalanobis distance between calculated for ML approximation
+        //Pi is initialized to the new feature threshold.
+        double pi = newFeatureThreshold;
 
+        //Comparing the observed measurement to all stored obstacles.
+        //The Mahalanobis distance between the measurement and existing obstacles is calculated.
+        //The obstacle index is stored for the obstacle with minimum distance.
+        for(int j = 0; j < n; j++)
+        {
+            //delta stores the difference in expected position of landmark n and expected position of robot
+            Eigen::VectorXd delta;
+            //Add three to index to skip over (x,y,theta)
+            delta << (x(2*j+3) - x(0)),
+                    (x(2*j+1+3) - x(1));
+
+            //Calculating distance between expected position of landmark and expected position of robot (r^2)
+            double q = delta.dot(delta);
+
+            //h stores the the predicted observation for the given landmark (range bearing).
+            Eigen::Vector2d hTemp;
+            hTemp << sqrt(q),
+                    (atan2(delta(1),delta(0)) - x(2));
+
+            //H is the Jacobian of the h - Jacobian of the predicted sensor measurement
+            //H is a 2x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
+            //jacobian and mapping to the higher dimension is taking place in one step by directly assigning
+            //the values to individual matrix indices.
+            //This is temporary because H is calculated for each stored obstacle. One one matrix H is stored
+            Eigen::MatrixXd HTemp = Eigen::MatrixXd::Zero(2,cov.rows());
+            HTemp(0,0) = -1*delta(0)/h(0);
+            HTemp(0,1) = -1*delta(1)/h(0);
+            //H(0,2) = 0; In here just for readability
+            HTemp(0,3+2*i) = delta(0)/h(0);
+            HTemp(0,4+2*i) = delta(1)/h(0);
+
+            HTemp(1,0) = delta(1)/q;
+            HTemp(1,1) = -1*delta(0)/q;
+            HTemp(1,2) = -1*q;
+            HTemp(1,3+2*i) = -1*delta(1)/q;
+            HTemp(1,4+2*i) = delta(0)/q;
+
+            //These next two terms are defined for the maximum likelihood approximation.
+            //pi is minimized to select the nearest neighbor
+            Eigen::MatrixXd psiTemp = HTemp*cov*HTemp.transpose()+Q;
+
+            //Calculating the Mahalanobis distance
+            double piTemp = (zCur-hTemp)*psiTemp.inverse()*(zCur-hTemp).transpose();
+
+            //Minimum mahalanobis distance found
+            //Update all values to store the data for the stored obstacle that produced the minimum distance
+            if(piTemp < pi)
+            {
+                pi = piTemp;
+                psi = psiTemp;
+                h = hTemp;
+                H = HTemp;
+            }
+        }
+
+        //The mahalanobis distance exceeded the threshold for all existing features
+        //A new feature must be created
+        if(pi == newFeatureThreshold)
+        {
+            //Resize state and covariance matrices
+            x.conservativeResize(x.rows()+2);
+            cov.conservativeResize(x.rows()+2, x.cols()+2);
+            cov(cov.rows()-1,cov.cols()-1) = std::numeric_limits<double>::max();
+
+            //First add the obstacle to the state and covariance matrix
+            x(newObstInd + 3) = newObstX;
+            x(newObstInd + 4) = newObstX;
+        }
+        //TODO Determine if we need to calculate Kalman gain and update here
         //Kalman gain
         Eigen::MatrixXd K;
 
         //Measurement Update occurs here
-        K = cov*H.transpose()*(H*cov*H.transpose()+Q).inverse(); //Calculate Kalman gain
-        x = x + K*(z-h); //Update state estimate
+        K = cov*H.transpose()*psi.inverse(); //Calculate Kalman gain
+        x = x + K*(zCur-h); //Update state estimate
         Eigen::MatrixXd KH = K*H;
         cov = (Eigen::MatrixXd::Identity(KH.rows(),KH.cols()) - KH)*cov; //Update covariance matrix
 
@@ -208,18 +267,21 @@ void EKFSlammer::kinectUpdate(Eigen::VectorXd &z)
 //accelerometerUpdate
 //Accelerometer returns the acceleration in the x and y directions. This is used to calcalate the "observed"
 //position update, which is compared to the position calculated by the motion model update
-void EKFSlammer::accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d &gamma)
+void EKFSlammer::accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d &gamma, Eigen::Vector2d encoder)
 {
     double timeStep = getTimeStep();
     Eigen::MatrixXd Q;
+
+    //TODO get velocity here
+    //Velocity (X&Y) of the robot determined from the enocder inputs
+    Eigen::Vector2d vel;
 
     //Calculate the planar acceleration in the world's reference frame by transforming the vector by the inverse
     //rotation matrix and subtracting the components of gravity.,
     Eigen::Vector2d a = getRotationMatInverse()*gamma - g;
 
     //Calculates the position of the robot based on the previous time step and the acceleration of the robot
-    //TODO Ask Dr. Peters about including robot velocity here. Perhaps use encoders or control input to get velocity?
-    Eigen::Vector2d s = previousS + 0.5*pow(timeStep,2)*a;
+    Eigen::Vector2d s = previousS + vel*timeStep + 0.5*pow(timeStep,2)*a;
 
     //h stores the predicted position of the robot based on the motion model update
     Eigen::Vector2d h;
