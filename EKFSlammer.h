@@ -10,8 +10,9 @@
 
 class EKFSlammer {
 private:
-    Eigen::VectorXd x; //Stores current state (pose and location of all elements in map)
-    Eigen::MatrixXd cov; //Stores covariance matrix for state vector
+    
+    Eigen::VectorXd x; // State (location of the robot and all elements in map)
+    Eigen::MatrixXd cov; // Covariance matrix for state vector
 
     //Stores the components of gravity in the x and y directions of the accelerometers
     //This accounts for the accelerometer not being completely level
@@ -25,7 +26,6 @@ private:
 
 public:
     //EKFSlammer
-    //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
     EKFSlammer();
 
     //getRotationMat
@@ -44,7 +44,7 @@ public:
 
     //setZeroPosition
     //Transforms the world reference frame to be zeroed at the new zero position (passed relative to the robot)
-    void setZeroPosition(Eigen::Vector2d &arucoMarker)
+    void setZeroPosition(Eigen::Vector2d &arucoMarker);
 
     //getTimeStep
     //Returns the elpased time between time steps
