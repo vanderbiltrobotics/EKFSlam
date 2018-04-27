@@ -3,4 +3,4 @@ project(EKFSlam)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(EKFSlam main.cpp EKFSlammer.h EKFSlammer.cpp Utils.h Robot.cpp)
+add_executable(EKFSlam main.cpp EKFSlammer.h EKFSlammer.cpp Utils.h Robot.cpp Robot.h)

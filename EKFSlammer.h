@@ -19,8 +19,8 @@ private:
 
     int n; //Number of stored landmark features
 
-    //TODO make this smarter than a simple distance
-    double newFeatureThreshold; //Distance threshold for classifying observed features as new
+    //Mahalanobis distance threshold for classifying observed features as new
+    double newFeatureThreshold;
 
 
 public:
@@ -66,7 +66,7 @@ public:
 
     void kinectUpdate(Eigen::VectorXd &z);
 
-    void accelerometerUpdate((Eigen::Vector2d &previousS, Eigen::Vector2d &gamma);
+    void accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d &gamma, Eigen::Vector2d encoder);
 
     void gyroUpdate(double &previousTheta, double &beta);
 
