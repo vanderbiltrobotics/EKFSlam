@@ -10,12 +10,11 @@
 
 class EKFSlammer {
 private:
-    Eigen::VectorXd x; //Stores current state (pose and location of all elements in map)
-    Eigen::MatrixXd cov; //Stores covariance matrix for state vector
+    Eigen::VectorXd x; // State (location of the robot and all elements in map)
+    Eigen::MatrixXd cov; // Covariance matrix for state vector
 
 public:
     //EKFSlammer
-    //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
     EKFSlammer();
 
     //motionModelUpdate

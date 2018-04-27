@@ -1,9 +1,10 @@
 #include "EKFSlammer.h"
 
-
+// Member variables: 
+// Eigen::VectorXd x; // State (location of the robot and all elements in map)
+// Eigen::MatrixXd cov; // Covariance matrix for state vector
 
 //EKFSlammer
-//Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
 EKFSlammer::EKFSlammer(): x(Eigen::VectorXd::Constant(0)), cov(Eigen::Matrix2d::Constant(0))
 {}
 
@@ -24,7 +25,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
     //x(0) - x position of robot
     //x(1) - y position of robot
     //x(2) - theta (angular position of robot, measured ccw from positive x)
-    x(0) = x(0) + -1*vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + controlIn.omega*deltaT);
+    x(0) = x(0) - vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + controlIn.omega*deltaT);
     x(1) = x(1) + vOmegaRatio*cos(theta) - vOmegaRatio*cos(theta + controlIn.omega*deltaT);
     x(2) = x(2) + controlIn.omega*deltaT;
 
@@ -35,7 +36,6 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
 
     //Note: Gxt is capital since g represents the motion model function while G represents the Jacobian for the
     //motion model function
-    //Camel case convention is broken to maintain consistency with mathematical notation
     Eigen::Matrix3d Gxt = Eigen::Matrix3d::Identity();
     Gxt(0,2) = -1*(controlIn.v)/(controlIn.omega)*cos(theta)
                + (controlIn.v)/(controlIn.omega)*cos(theta + controlIn.omega*deltaT);
