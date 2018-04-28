@@ -48,7 +48,7 @@ public:
 
     //getTimeStep
     //Returns the elpased time between time steps
-    int getTimeStep();
+    double getTimeStep();
 
     //motionModelUpdate
     //Calculates the predicted position of the robot based on the command passed

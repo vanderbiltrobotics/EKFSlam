@@ -6,7 +6,6 @@
     todo - Add handling for angle rollover
     todo - Determine how to add motion model and measurement noise
     todo - Determine velocity term for accelerometer update
-    todo - Implement time step
     todo - Implement coordinate transformation for beginning of algorithm execution
  */
 
@@ -15,10 +14,19 @@
 //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
 EKFSlammer::EKFSlammer() : x(Eigen::Vector3d::Constant(0)),
                            cov(Eigen::Matrix2d::Constant(0)),
-                           g(Eigen::Matrix2d::Constant(0)), 
+                           g(Eigen::Vector2d::Constant(0)),
                            n(0)
 {
-    //TODO Add infinities to covariance matrix
+    cov(0,0) = std::numeric_limits<double>::max();
+    cov(1,1) = std::numeric_limits<double>::max();
+    cov(2,2) = std::numeric_limits<double>::max();
+
+}
+
+
+double EKFSlammer::getTimeStep()
+{
+    return 0.020; //Time Step in seconds. Constant for the purpose of the simulation
 }
 
 //getRotationMat
@@ -128,9 +136,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
 //Returns the uncertainty in the motion model update
 Eigen::MatrixXd EKFSlammer::getMotionModelUncertainty()
 {
-    //TODO: Implement - Requires testing data to build error distribution
-    //TODO: Determine covariance matrix for motion model and return that
-
+    Eigen::Matrix3d error = Eigen::MatrixXd::Constant(3, 3, 0);
     // provisional, 3x3 matrix of ones
     return Eigen::MatrixXd::Constant(3, 3, 1);
 }
@@ -144,6 +150,7 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
     int obstacleIndex; //Stores the index of the obstacle that is currently being operated on.
 
     Eigen::MatrixXd Q;
+
 
 
     for(int i = 0; i < z.rows()/2; i++)
@@ -408,8 +415,8 @@ void EKFSlammer::ekfUpdate(const control &controlIn,
 {
     double deltaT;
 
-    //Stores the previous position vector of the robot, needed for the acclerometer
-    Eigen::Vector3d previousS;
+    //Stores the previous position vector of the robot, needed for the accelerometer
+    Eigen::Vector2d previousS;
     previousS << x(0),x(1);
 
     //Stores the previous position angle of the robot, needed for the gyro
