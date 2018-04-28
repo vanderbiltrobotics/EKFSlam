@@ -1,12 +1,11 @@
 //#include <d2d1_1helper.h>
 #include "EKFSlammer.h"
+#include <cmath>
 
 
 /*TODO LIST
-    todo - Add handling for angle rollover
     todo - Determine how to add motion model and measurement noise
     todo - Determine velocity term for accelerometer update
-    todo - Implement coordinate transformation for beginning of algorithm execution
  */
 
 
@@ -73,7 +72,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
     //x(2) - theta (angular position of robot, measured ccw from positive x)
     x(0) += -vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + controlIn.omega*deltaT);
     x(1) += vOmegaRatio*cos(theta) - vOmegaRatio*cos(theta + controlIn.omega*deltaT);
-    x(2) += controlIn.omega*deltaT;
+    x(2) += std::fmod((controlIn.omega*deltaT),(2*M_PI));
 
     //Calculate Jacobian for motion model update
     //Gxt is the Jacobian for only the current pose of the robot (does not include landmark locations)
