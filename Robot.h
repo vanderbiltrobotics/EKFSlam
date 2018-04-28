@@ -78,9 +78,17 @@ public:
     {
         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
         std::default_random_engine generator (seed);
+        if(in.v != 0 and in.omega != 0)
+        {
+            actualVelocity(0) = in.v + vDistribution(generator);
+            actualVelocity(1) = in.omega + omegaDistribution(generator);
+        }
+        else
+        {
+            actualVelocity(0) = 0;
+            actualVelocity(1) = 0;
+        }
 
-        actualVelocity(0) = in.v + vDistribution(generator);
-        actualVelocity(1) = in.omega + omegaDistribution(generator);
     }
 
     void stepTime(double deltaT)

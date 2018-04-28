@@ -314,8 +314,6 @@ void EKFSlammer::gyroUpdate(const double &previousTheta, const double &beta)
     //Stores deltaT
     double timeStep = getTimeStep();
 
-    Eigen::MatrixXd Q;
-
     //Calculates the orientation of the robot based on the angular velocity and previous orientation
     double theta = previousTheta + beta*timeStep;
 
@@ -323,11 +321,13 @@ void EKFSlammer::gyroUpdate(const double &previousTheta, const double &beta)
     double h = x(2);
 
     //H is the Jacobian of the h - Jacobian of the predicted sensor measurement
-    //H is a 2x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
+    //H is a 1x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
     //jacobian and mapping to the higher dimension is taking place in one step by directly assigning
     //the values to individual matrix indices.
-    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(2,cov.rows());
-    H(3,3) = 1;
+    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(1,cov.rows());
+    Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(1,1);
+    Q(1,1) = 1; //TODO INSERT GYRO STANDARD DEVIATION HERE
+    H(1,3) = 1;
 
     //Kalman gain
     Eigen::MatrixXd K;
