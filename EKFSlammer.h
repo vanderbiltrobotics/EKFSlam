@@ -20,8 +20,8 @@ private:
 
     int n; //Number of stored landmark features
 
-    //TODO make this smarter than a simple distance
-    double newFeatureThreshold; //Distance threshold for classifying observed features as new
+    //Mahalanobis distance threshold for classifying observed features as new
+    double newFeatureThreshold;
 
 
 public:
@@ -40,15 +40,15 @@ public:
 
     //getMotionModelUncertainty
     //Returns the uncertainty in the motion model update
-    Eigen::MatrixXf getMotionModelUncertainty();
+    Eigen::MatrixXd getMotionModelUncertainty();
 
     //setZeroPosition
     //Transforms the world reference frame to be zeroed at the new zero position (passed relative to the robot)
-    void setZeroPosition(Eigen::Vector2d &arucoMarker);
+    void setZeroPosition(const Eigen::Vector2d &arucoMarker);
 
     //getTimeStep
     //Returns the elpased time between time steps
-    int getTimeStep();
+    double getTimeStep();
 
     //motionModelUpdate
     //Calculates the predicted position of the robot based on the command passed
@@ -64,13 +64,15 @@ public:
     //Encoders return an estimated state for the robot
     //void encoderUpdate(Eigen::Matrix3d encEstPos);
 
-    void kinectUpdate(Eigen::VectorXd &z);
+    void kinectUpdate(const Eigen::VectorXd &z);
 
-    void accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d &gamma, Eigen::Vector2d encoder);
+    void accelerometerUpdate(const Eigen::Vector2d &previousS,
+                             const Eigen::Vector2d &gamma,
+                             const Eigen::Vector2d encoder);
 
-    void gyroUpdate(double &previousTheta, double &beta);
+    void gyroUpdate(const double &previousTheta, const double &beta);
 
-    void arucoUpdate(Eigen::Vector2d &arucoMarker);
+    void arucoUpdate(const Eigen::Vector2d &arucoMarker);
 
     void ekfCorrectionStep(Eigen::VectorXd &kinectObstacles,
                            Eigen::Vector2d &previousS, 
@@ -80,10 +82,11 @@ public:
                            Eigen::Vector2d &arucoMarker);
 
     void ekfUpdate(const control &controlIn,
-                            Eigen::VectorXd &kinectObstacles,
-                            Eigen::Vector2d &gamma,
-                            double &beta,
-                            Eigen::Vector2d &arucoMarker);
+                   const Eigen::VectorXd &kinectObstacles,
+                   const Eigen::Vector2d &gamma,
+                   const Eigen::Vector2d &encoder,
+                   const double &beta,
+                   const Eigen::Vector2d &arucoMarker);
 };
 
 

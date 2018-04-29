@@ -1,23 +1,32 @@
 //#include <d2d1_1helper.h>
 #include "EKFSlammer.h"
+#include <cmath>
 
 
 /*TODO LIST
-    todo - Add handling for angle rollover
     todo - Determine how to add motion model and measurement noise
     todo - Determine velocity term for accelerometer update
-    todo - Implement time step
-    todo - Implement coordinate transformation for beginning of algorithm execution
  */
 
 
 //EKFSlammer
 //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
-EKFSlammer::EKFSlammer() : x(Eigen::VectorXd::Constant(0, 3, 3)),
+EKFSlammer::EKFSlammer() : x(Eigen::Vector3d::Constant(0)),
                            cov(Eigen::Matrix2d::Constant(0)),
-                           g(Eigen::Matrix2d::Constant(0)), 
+                           g(Eigen::Vector2d::Constant(0)),
                            n(0)
-{}
+{
+    cov(0,0) = std::numeric_limits<double>::max();
+    cov(1,1) = std::numeric_limits<double>::max();
+    cov(2,2) = std::numeric_limits<double>::max();
+
+}
+
+
+double EKFSlammer::getTimeStep()
+{
+    return 0.020; //Time Step in seconds. Constant for the purpose of the simulation
+}
 
 //getRotationMat
 //Returns 2x2 rotation matrix describing the transformation from the world reference frame to the
@@ -63,7 +72,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
     //x(2) - theta (angular position of robot, measured ccw from positive x)
     x(0) += -vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + controlIn.omega*deltaT);
     x(1) += vOmegaRatio*cos(theta) - vOmegaRatio*cos(theta + controlIn.omega*deltaT);
-    x(2) += controlIn.omega*deltaT;
+    x(2) += std::fmod((controlIn.omega*deltaT),(2*M_PI));
 
     //Calculate Jacobian for motion model update
     //Gxt is the Jacobian for only the current pose of the robot (does not include landmark locations)
@@ -124,24 +133,23 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
 
 //getMotionModelUncertainty
 //Returns the uncertainty in the motion model update
-Eigen::MatrixXf EKFSlammer::getMotionModelUncertainty()
+Eigen::MatrixXd EKFSlammer::getMotionModelUncertainty()
 {
-    //TODO: Implement - Requires testing data to build error distribution
-    //TODO: Determine covariance matrix for motion model and return that
-
+    Eigen::Matrix3d error = Eigen::MatrixXd::Constant(3, 3, 0);
     // provisional, 3x3 matrix of ones
-    return Eigen::MatrixXf::Constant(3, 3, 1);
+    return Eigen::MatrixXd::Constant(3, 3, 1);
 }
 
 
 //kinectUpdate
 //Kinect returns the distance and angle (relative to the robot) of detected obstacles in the environment
 //Calculates the updated position of the robot based on the measurements
-void EKFSlammer::kinectUpdate(Eigen::VectorXd &z)
+void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
 {
     int obstacleIndex; //Stores the index of the obstacle that is currently being operated on.
 
     Eigen::MatrixXd Q;
+
 
 
     for(int i = 0; i < z.rows()/2; i++)
@@ -215,7 +223,7 @@ void EKFSlammer::kinectUpdate(Eigen::VectorXd &z)
             Eigen::MatrixXd psiTemp = HTemp*cov*HTemp.transpose()+Q;
 
             //Calculating the Mahalanobis distance
-            double piTemp = (zCur-hTemp)*psiTemp.inverse()*(zCur-hTemp).transpose();
+            double piTemp = ((zCur-hTemp)*(psiTemp.inverse())*((zCur-hTemp).transpose()))(0,0);
 
             //Minimum mahalanobis distance found
             //Update all values to store the data for the stored obstacle that produced the minimum distance
@@ -257,7 +265,9 @@ void EKFSlammer::kinectUpdate(Eigen::VectorXd &z)
 //accelerometerUpdate
 //Accelerometer returns the acceleration in the x and y directions. This is used to calcalate the "observed"
 //position update, which is compared to the position calculated by the motion model update
-void EKFSlammer::accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d &gamma, Eigen::Vector2d encoder)
+void EKFSlammer::accelerometerUpdate(const Eigen::Vector2d &previousS,
+                                     const Eigen::Vector2d &gamma,
+                                     const Eigen::Vector2d encoder)
 {
     double timeStep = getTimeStep();
     Eigen::MatrixXd Q;
@@ -299,12 +309,10 @@ void EKFSlammer::accelerometerUpdate(Eigen::Vector2d &previousS, Eigen::Vector2d
 //accelerometerUpdate
 //Accelerometer returns the acceleration in the x and y directions. This is used to calcalate the "observed"
 //position update, which is compared to the position calculated by the motion model update
-void EKFSlammer::gyroUpdate(double &previousTheta, double &beta)
+void EKFSlammer::gyroUpdate(const double &previousTheta, const double &beta)
 {
     //Stores deltaT
     double timeStep = getTimeStep();
-
-    Eigen::MatrixXd Q;
 
     //Calculates the orientation of the robot based on the angular velocity and previous orientation
     double theta = previousTheta + beta*timeStep;
@@ -313,11 +321,13 @@ void EKFSlammer::gyroUpdate(double &previousTheta, double &beta)
     double h = x(2);
 
     //H is the Jacobian of the h - Jacobian of the predicted sensor measurement
-    //H is a 2x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
+    //H is a 1x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
     //jacobian and mapping to the higher dimension is taking place in one step by directly assigning
     //the values to individual matrix indices.
-    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(2,cov.rows());
-    H(3,3) = 1;
+    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(1,cov.rows());
+    Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(1,1);
+    Q(1,1) = 1; //TODO INSERT GYRO STANDARD DEVIATION HERE
+    H(1,3) = 1;
 
     //Kalman gain
     Eigen::MatrixXd K;
@@ -329,7 +339,7 @@ void EKFSlammer::gyroUpdate(double &previousTheta, double &beta)
     cov = (Eigen::MatrixXd::Identity(KH.rows(),KH.cols()) - KH)*cov; //Update covariance matrix
 }
 
-void EKFSlammer::arucoUpdate(Eigen::Vector2d &arucoMarker)
+void EKFSlammer::arucoUpdate(const Eigen::Vector2d &arucoMarker)
 {
     int obstacleIndex; //Stores the index of the obstacle that is currently being operated on.
 
@@ -372,19 +382,20 @@ void EKFSlammer::arucoUpdate(Eigen::Vector2d &arucoMarker)
     cov = (Eigen::MatrixXd::Identity(KH.rows(),KH.cols()) - KH)*cov; //Update covariance matrix
 }
 
-void EKFSlammer::ekfCorrectionStep(Eigen::VectorXd &kinectObstacles,
-                                   Eigen::Vector2d &previousS, 
-                                   Eigen::Vector2d &gamma,
-                                   double &previousTheta, 
-                                   double &beta,
-                                   Eigen::Vector2d &arucoMarker)
+void EKFSlammer::ekfCorrectionStep(const Eigen::VectorXd &kinectObstacles,
+                                   const Eigen::Vector2d &previousS,
+                                   const Eigen::Vector2d &gamma,
+                                   const Eigen::Vector2d &encoder,
+                                   const double &previousTheta,
+                                   const double &beta,
+                                   const Eigen::Vector2d &arucoMarker)
 {
     //Update based on the obstacles detected by the Kinect. The Kinect returns the range and bearing of
     //obstacles in the environment.
     EKFSlammer::kinectUpdate(kinectObstacles);
 
     //Update based on the acceleration measured by the accelerometer.
-    accelerometerUpdate(previousS, gamma);
+    accelerometerUpdate(previousS, gamma, encoder);
 
     //Update based on the angular velocity measured by the gyro.
     gyroUpdate(previousTheta, beta);
@@ -395,15 +406,16 @@ void EKFSlammer::ekfCorrectionStep(Eigen::VectorXd &kinectObstacles,
 
 //TODO Handle angle updates correctly: incorporate rollover
 void EKFSlammer::ekfUpdate(const control &controlIn,
-                           Eigen::VectorXd &kinectObstacles,
-                           Eigen::Vector2d &gamma,
-                           double &beta,
-                           Eigen::Vector2d &arucoMarker)
+                           const Eigen::VectorXd &kinectObstacles,
+                           const Eigen::Vector2d &gamma,
+                           const Eigen::Vector2d &encoder,
+                           const double &beta,
+                           const Eigen::Vector2d &arucoMarker)
 {
     double deltaT;
 
-    //Stores the previous position vector of the robot, needed for the acclerometer
-    Eigen::Vector3d previousS;
+    //Stores the previous position vector of the robot, needed for the accelerometer
+    Eigen::Vector2d previousS;
     previousS << x(0),x(1);
 
     //Stores the previous position angle of the robot, needed for the gyro
@@ -417,5 +429,5 @@ void EKFSlammer::ekfUpdate(const control &controlIn,
     //This is updating the prediction based on the data from the sensors. The observed values from the sensors
     //are compared to the predicted value from the previous step. Depending on error of the motion model
     //and the error of the sensor model, the update is weighted towards one or the other.
-    ekfCorrectionStep();
+    ekfCorrectionStep(kinectObstacles, previousS, gamma, encoder, previousTheta, beta, arucoMarker);
 }
