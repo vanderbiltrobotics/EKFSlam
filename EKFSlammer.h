@@ -72,7 +72,12 @@ public:
 
     void arucoUpdate(Eigen::Vector2d &arucoMarker);
 
-    void ekfCorrectionStep();
+    void ekfCorrectionStep(Eigen::VectorXd &kinectObstacles,
+                           Eigen::Vector2d &previousS, 
+                           Eigen::Vector2d &gamma,
+                           double &previousTheta, 
+                           double &beta,
+                           Eigen::Vector2d &arucoMarker);
 
     void ekfUpdate(const control &controlIn,
                             Eigen::VectorXd &kinectObstacles,

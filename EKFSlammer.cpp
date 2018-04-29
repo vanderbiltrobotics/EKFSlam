@@ -13,7 +13,7 @@
 
 //EKFSlammer
 //Initializes EKF Slammer. The robot's current pose is considered (0,0,0)
-EKFSlammer::EKFSlammer() : x(Eigen::VectorXd::Constant(0)),
+EKFSlammer::EKFSlammer() : x(Eigen::VectorXd::Constant(0, 3, 3)),
                            cov(Eigen::Matrix2d::Constant(0)),
                            g(Eigen::Matrix2d::Constant(0)), 
                            n(0)
@@ -373,8 +373,10 @@ void EKFSlammer::arucoUpdate(Eigen::Vector2d &arucoMarker)
 }
 
 void EKFSlammer::ekfCorrectionStep(Eigen::VectorXd &kinectObstacles,
-                                   Eigen::Vector2d &previousS, Eigen::Vector2d &gamma,
-                                   double &previousTheta, double &beta
+                                   Eigen::Vector2d &previousS, 
+                                   Eigen::Vector2d &gamma,
+                                   double &previousTheta, 
+                                   double &beta,
                                    Eigen::Vector2d &arucoMarker)
 {
     //Update based on the obstacles detected by the Kinect. The Kinect returns the range and bearing of
