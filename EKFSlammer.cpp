@@ -92,7 +92,6 @@ Eigen::Matrix3d EKFSlammer::getMotionModelUncertainty(const control &cIn) const
 
 //motionModelUpdate
 //Calculates the predicted position (mean and covariance) of the robot based on the command passed
-//const double &theta - Current position of the robot
 //const double &deltaT - Time step between updates
 //const control &controlIn - Control input received from
 void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlIn)
@@ -105,7 +104,7 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
     // TODO: Define for small omega
     if(controlIn.omega <= 0.00001)
     {
-        vOmegaRatio = controlIn.v / controlIn.omega;
+        // Do nothing for now.
     }
     else
     {
