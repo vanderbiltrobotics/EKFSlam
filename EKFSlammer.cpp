@@ -184,6 +184,55 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
         zCur(0) = (z(2*i));
         zCur(1) = (z(2*i+1));
 
+        //New Obstacle
+        if(2*i==n)
+        {
+            //Resize state and covariance matrices
+            x.conservativeResize(x.rows()+2);
+            cov.conservativeResize(cov.rows()+2, cov.cols()+2);
+
+            double newObstX =
+            double newObstY =
+
+            x(2*i + 3) = x(0) + zCur(0)*cos(zCur(1) + x(2));
+            x(2*i + 4) = x(1) + zCur(0)*sin(zCur(1) + x(2));
+            std::cout << "ADDING NEW OBSTACLE============" << std::endl;
+            std::cout << (2*i + 3) <<": " <<  x(2*i + 3) << std::endl;
+            std::cout << (2*i + 4) <<": " << x(2*i + 4) << std::endl;
+            std::cout << "x: " << x.rows() << " " << x.cols() << std::endl;
+
+
+
+            Eigen::Vector2d delta;
+            //Add three to index to skip over (x,y,theta)
+            delta << (x(newObstInd + 3) - x(0)),
+                    (x(newObstInd + 4) - x(1));
+
+
+
+            //Calculating distance between expected position of landmark and expected position of robot (r^2)
+            double q = delta.dot(delta);
+
+
+
+            H.conservativeResize(2, cov.cols());
+            //Building Jacobian matrix H with new obstacle included
+            H(0,0) = -1*delta(0)/h(0);
+            H(0,1) = -1*delta(1)/h(0);
+            //H(0,2) = 0; In here just for readability
+            H(0,newObstInd + 3) = delta(0)/h(0);
+            H(0,newObstInd + 4) = delta(1)/h(0);
+
+            H(1,0) = delta(1)/q;
+            H(1,1) = -1*delta(0)/q;
+            H(1,2) = -1*q;
+            H(1,newObstInd + 3) = -1*delta(1)/q;
+            H(1,newObstInd + 4) = delta(0)/q; //TESTING CONTINUES HERE. VERIFY THAT H IS BEING CALCULATED CORRECTLY.
+            //TODO, make sure indices for building H normally are correct
+            n++;
+            psi = H*cov*H.transpose()+Q;
+        }
+
 
 
         //First step of the update is to use maximum likelihood approximation to determine associate the
@@ -193,9 +242,7 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
         //The location of the landmark is calculated by transforming the range-bearing measurement to the
         //world reference frame
 
-        double newObstX = x(0) + zCur(0)*cos(zCur(1) + x(2));
-        double newObstY = x(1) + zCur(0)*sin(zCur(1) + x(2));
-        int newObstInd = 2*(n); //Index of the new obstacle is n+1
+
 
 
 
