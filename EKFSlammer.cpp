@@ -144,33 +144,17 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
         if(cov.rows() > 3) {
             //Extract the 3xM covariance matrix for xm (pose of robot with map)
             //covXM in the covariance matrix is within columns 3-N and rows 0-2 where N is number of rows/cols of cov matrix
-            Eigen::MatrixXd covXM = cov.block(0, 3, 3, 3 - n);
-            std::cout << Gxt.rows() << " " << Gxt.cols();
-            std::cout << covXM.rows() << " " << covXM.cols();
+            Eigen::MatrixXd covXM = cov.block(0, 3, 3, 2*n);
+
             //Calculated updated covariance matrix for xm
             //Multiply by the Jacobian
             covXM = Gxt * covXM;
-            cov.block(0, 3, 3, 3-n) = covXM;
-            cov.block(3, 0, 3-n, 3) = covXM.transpose();
+            cov.block(0, 3, 3, 2*n) = covXM;
+            cov.block(3, 0, 2*n, 3) = covXM.transpose();
         }
         //Write updated covariances back to cov
         //XX Update
         cov.block<3,3>(0, 0) = covXX;
-
-        //XM Update (3-n matrix) - n is the number of landmarks stored
-
-        // for(int i = 0; i < 3; i++) {
-        //     for(int j = 2; j < cov.cols(); j++) {
-        //         cov(i, j) = covXM(i, j);
-        //     }
-        // }
-
-        //MX Update (n-3 matrix) - n is the number of landmarks stored
-        // for(int i = 0; i < cov.rows(); i++) {
-        //     for(int j = 2; j < 3; j++) {
-        //         cov(i, j) = covXM.transpose()(i, j);
-        //     }
-        // }
     }
 
 }
@@ -182,7 +166,6 @@ void EKFSlammer::motionModelUpdate(const double &deltaT, const control &controlI
 void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
 {
     int obstacleIndex; //Stores the index of the obstacle that is currently being operated on.
-
     Eigen::Matrix2d Q;
 
     Q(0,0) = 0.0002502;
@@ -190,13 +173,17 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
     Q(1,0) = -0.0000052;
     Q(1,1) = 0.0002070;
 
-
+    std::cout << "Entering outer loop (iterating over input data)." << std::endl;
+    std::cout << "Size of input vector is " << z.rows() <<  std::endl;
     for(int i = 0; i < z.rows()/2; i++)
     {
+        std::cout << "Kinect Measurement #" << i << std::endl;
         //zCur stores the current measurement being operated on
         Eigen::Vector2d zCur;
         zCur(0) = (z(2*i));
         zCur(1) = (z(2*i+1));
+
+
 
         //First step of the update is to use maximum likelihood approximation to determine associate the
         //measurement of the obstacle to a previously detected obstacle.
@@ -207,7 +194,7 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
 
         double newObstX = x(0) + zCur(0)*cos(zCur(1) + x(2));
         double newObstY = x(1) + zCur(0)*sin(zCur(1) + x(2));
-        int newObstInd = n+1; //Index of the new obstacle is n+1
+        int newObstInd = 2*(n); //Index of the new obstacle is n+1
 
 
 
@@ -224,16 +211,23 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
         //Pi is initialized to the new feature threshold.
         double pi = newFeatureThreshold;
 
+
+        std::cout << "Entering inner (iterating over stored obstacles)." << std::endl;
         //Comparing the observed measurement to all stored obstacles.
         //The Mahalanobis distance between the measurement and existing obstacles is calculated.
         //The obstacle index is stored for the obstacle with minimum distance.
         for(int j = 0; j < n; j++)
         {
+            std::cout << "Stored Obstacle #" << j << std::endl;
             //delta stores the difference in expected position of landmark n and expected position of robot
             Eigen::Vector2d delta;
             //Add three to index to skip over (x,y,theta)
+            std::cout << "\n\n\n\nx: " << x.rows() << " " << 2*j+3 << " " << 2*j+4 << std::endl;
+            std::cout << "obstacle: " << x(2*j+3) << " " << x(2*j+4) << std::endl;
             delta << (x(2*j+3) - x(0)),
-                    (x(2*j+1+3) - x(1));
+                    (x(2*j+4) - x(1));
+
+
 
             //Calculating distance between expected position of landmark and expected position of robot (r^2)
             double q = delta.dot(delta);
@@ -243,30 +237,45 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
             hTemp << sqrt(q),
                     (atan2(delta(1), delta(0)) - x(2));
 
+
+
             //H is the Jacobian of the h - Jacobian of the predicted sensor measurement
             //H is a 2x5 matrix that gets mapped to a higher dimensional matrix. The computation of the
             //jacobian and mapping to the higher dimension is taking place in one step by directly assigning
             //the values to individual matrix indices.
             //This is temporary because H is calculated for each stored obstacle. One one matrix H is stored
             Eigen::MatrixXd HTemp = Eigen::MatrixXd::Zero(2,cov.rows());
-            HTemp(0,0) = -1*delta(0)/h(0);
-            HTemp(0,1) = -1*delta(1)/h(0);
+            HTemp(0,0) = -delta(0)/hTemp(0);
+            HTemp(0,1) = -delta(1)/hTemp(0);
             //H(0,2) = 0; In here just for readability
-            HTemp(0,3+2*i) = delta(0)/h(0);
-            HTemp(0,4+2*i) = delta(1)/h(0);
+            HTemp(0,3+2*j) = delta(0)/hTemp(0);
+            HTemp(0,4+2*j) = delta(1)/hTemp(0);
 
             HTemp(1,0) = delta(1)/q;
-            HTemp(1,1) = -1*delta(0)/q;
+            HTemp(1,1) = -delta(0)/q;
             HTemp(1,2) = -1;
-            HTemp(1,3+2*i) = -1*delta(1)/q;
-            HTemp(1,4+2*i) = delta(0)/q;
+            HTemp(1,3+2*j) = -delta(1)/q;
+            HTemp(1,4+2*j) = delta(0)/q;
+
+
 
             //These next two terms are defined for the maximum likelihood approximation.
             //pi is minimized to select the nearest neighbor
+
             Eigen::MatrixXd psiTemp = HTemp*cov*HTemp.transpose()+Q;
 
+
+
+
             //Calculating the Mahalanobis distance
-            double piTemp = ((zCur-hTemp)*(psiTemp.inverse())*((zCur-hTemp).transpose()))(0,0);
+            std::cout << "zCur  " << std::endl << zCur << std::endl<< std::endl;
+            std::cout << "hTemp  " << std::endl << hTemp << std::endl<< std::endl;
+            std::cout << "psi  " << std::endl << psiTemp << std::endl<< std::endl;
+            std::cout << "psiInverse  " << std::endl << psiTemp.inverse() << std::endl<< std::endl;
+
+
+            double piTemp = ((zCur-hTemp).transpose()*(psiTemp.inverse())*((zCur-hTemp)))(0,0);
+            std::cout << "PITEMP: " << piTemp << std::endl;
 
             //Minimum mahalanobis distance found
             //Update all values to store the data for the stored obstacle that produced the minimum distance
@@ -277,6 +286,7 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
                 h = hTemp;
                 H = HTemp;
             }
+
         }
 
         //The mahalanobis distance exceeded the threshold for all existing features
@@ -286,48 +296,58 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
             //Resize state and covariance matrices
             x.conservativeResize(x.rows()+2);
             cov.conservativeResize(cov.rows()+2, cov.cols()+2);
-            //cov(cov.rows()-1,cov.cols()-1) = std::numeric_limits<double>::max();
-            //First add the obstacle to the state and covariance matrix
-            x(newObstInd + 2) = newObstX;
-            x(newObstInd + 3) = newObstY;
+
+
+            x(newObstInd + 3) = newObstX;
+            x(newObstInd + 4) = newObstY;
+            std::cout << "ADDING NEW OBSTACLE============" << std::endl;
+            std::cout << (newObstInd + 3) <<": " <<  x(newObstInd + 3) << std::endl;
+            std::cout << (newObstInd + 4) <<": " << x(newObstInd + 4) << std::endl;
+            std::cout << "x: " << x.rows() << " " << x.cols() << std::endl;
+
+
 
             Eigen::Vector2d delta;
             //Add three to index to skip over (x,y,theta)
-            delta << (x(newObstInd + 2) - x(0)),
-                    (x(newObstInd + 3) - x(1));
+            delta << (x(newObstInd + 3) - x(0)),
+                    (x(newObstInd + 4) - x(1));
+
+
 
             //Calculating distance between expected position of landmark and expected position of robot (r^2)
             double q = delta.dot(delta);
+
+
 
             H.conservativeResize(2, cov.cols());
             //Building Jacobian matrix H with new obstacle included
             H(0,0) = -1*delta(0)/h(0);
             H(0,1) = -1*delta(1)/h(0);
             //H(0,2) = 0; In here just for readability
-            H(0,newObstInd + 2) = delta(0)/h(0);
-            H(0,newObstInd + 3) = delta(1)/h(0);
+            H(0,newObstInd + 3) = delta(0)/h(0);
+            H(0,newObstInd + 4) = delta(1)/h(0);
 
             H(1,0) = delta(1)/q;
             H(1,1) = -1*delta(0)/q;
             H(1,2) = -1*q;
-            H(1,newObstInd + 2) = -1*delta(1)/q;
-            H(1,newObstInd + 3) = delta(0)/q; //TESTING CONTINUES HERE. VERIFY THAT H IS BEING CALCULATED CORRECTLY.
+            H(1,newObstInd + 3) = -1*delta(1)/q;
+            H(1,newObstInd + 4) = delta(0)/q; //TESTING CONTINUES HERE. VERIFY THAT H IS BEING CALCULATED CORRECTLY.
             //TODO, make sure indices for building H normally are correct
-
+            n++;
+            psi = H*cov*H.transpose()+Q;
         }
-
-        //TODO Determine if we need to calculate Kalman gain and update here
-        //Kalman gain
-        Eigen::MatrixXd K;
-
-        //Measurement Update occurs here
-        psi = H*cov*H.transpose()+Q;
-        K = cov*H.transpose()*psi.inverse(); //Calculate Kalman gain
-        x = x + K*(zCur-h); //Update state estimate
-        Eigen::MatrixXd KH = K*H;
-        cov = (Eigen::MatrixXd::Identity(KH.rows(),KH.cols()) - KH)*cov; //Update covariance matrix
+        else {
+            //TODO Determine if we need to calculate Kalman gain and update here
+            //Kalman gain
+            Eigen::MatrixXd K;
 
 
+            //Measurement Update occurs here
+            K = cov * H.transpose() * psi.inverse(); //Calculate Kalman gain
+            x = x + K * (zCur - h); //Update state estimate
+            Eigen::MatrixXd KH = K * H;
+            cov = (Eigen::MatrixXd::Identity(KH.rows(), KH.cols()) - KH) * cov; //Update covariance matrix
+        }
     }
 }
 
@@ -433,8 +453,6 @@ void EKFSlammer::arucoUpdate(const Eigen::Vector2d &arucoMarker)
     //h stores the the predicted observation for the given landmark.
     Eigen::Vector2d h;
     h << sqrt(q), fmod((atan2(delta(1),delta(0)) - M_PI/2.0 + x(2)), 2*M_PI);
-    std::cout << "Dat fat h(1) val: " << h(1) << std::endl;
-    std::cout << delta << std::endl;
 
     //Location of the AruCo marker, which is known to be (0,0)
     //Eigen::Vector2d z;
@@ -484,7 +502,7 @@ void EKFSlammer::ekfCorrectionStep(const Eigen::VectorXd &kinectObstacles,
     //Update based on the angular velocity measured by the gyro.
     gyroUpdate(previousTheta, beta);
 
-    arucoUpdate(arucoMarker);
+    //arucoUpdate(arucoMarker);
 
 }
 
