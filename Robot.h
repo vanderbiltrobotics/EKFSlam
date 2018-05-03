@@ -39,24 +39,27 @@ private:
     std::normal_distribution<double> accelerometerYDistribution;
 
 
+    std::default_random_engine generator;
+
+
 public:
     Robot(Eigen::Vector3d initPos): actualPos(initPos),
                                     actualVelocity(Eigen::Vector2d::Constant(0)),
                                     actualAcceleration(Eigen::Vector2d::Constant(0)),
                                     vDistribution(0,0.05),
                                     omegaDistribution(0,0.05),
-                                    kinectRDistribution(0, 1),
-                                    kinectThetaDistribution(0, 1),
+                                    kinectRDistribution(0, 0.015),
+                                    kinectThetaDistribution(0, 0.2617),
                                     arucoXDistribution(0, 0.002687),
                                     arucoYDistribution(0, 0.002687),
                                     encoderVDistribution(0, 0.05),
                                     encoderOmegaDistribution(0, 0.05),
                                     gyroDistribution(0, 1),
                                     accelerometerXDistribution(0, 1),
-                                    accelerometerYDistribution(0, 1)
-
-
+                                    accelerometerYDistribution(0, 1),
+                                    generator(std::chrono::system_clock::now().time_since_epoch().count())
     {
+        //auto dice = std::bind ( kinectRDistribution, generator1);
     }
 
     Eigen::Vector3d getActualPos()
@@ -107,17 +110,11 @@ public:
 
     double getGyroMeasurement()
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
-
-        return actualVelocity(2) + gyroDistribution(generator);
+        return actualVelocity(1) + gyroDistribution(generator);
     }
 
     Eigen::Vector2d getAccelerometerMeasurement()
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
-
         Eigen::Vector2d errors;
         errors << accelerometerXDistribution(generator),
                     accelerometerYDistribution(generator);
@@ -128,8 +125,6 @@ public:
 
     Eigen::Vector2d getArucoMeasurment()
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
 
         Eigen::Vector2d errors;
         errors << arucoXDistribution(generator),
@@ -139,18 +134,16 @@ public:
     }
 
 
-    Eigen::Vector2d getKinectMeasurement(Eigen::VectorXd obstacles)
+    Eigen::VectorXd getKinectMeasurement(Eigen::VectorXd obstacles)
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
 
         Eigen::VectorXd estLocs = Eigen::VectorXd::Constant(obstacles.rows(), 1, 0);
         for(int i = 0; i < obstacles.rows();i+=2)
         {
-            Eigen::VectorXd delta;
+            Eigen::Vector2d delta;
             //Add three to index to skip over (x,y,theta)
-            delta << (obstacles(i) - actualPos(0)),
-                    (obstacles(i+1) - actualPos(1));
+            delta << (obstacles(0) - actualPos(0)),
+                    (obstacles(1) - actualPos(1));
 
             //Calculating distance between expected position of landmark and expected position of robot (r^2)
             double q = delta.dot(delta);
@@ -166,9 +159,6 @@ public:
 
     Eigen::Vector2d getEncoderMeasurement()
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
-
         Eigen::Vector2d errors;
         errors << encoderVDistribution(generator),
                 encoderOmegaDistribution(generator);

@@ -28,6 +28,8 @@ public:
     //EKFSlammer
     EKFSlammer();
 
+    Eigen::MatrixXd getState();
+
     //getRotationMat
     //Returns 2x2 rotation matrix describing the transformation from the world reference frame to the
     //robot reference frame
@@ -40,7 +42,7 @@ public:
 
     //getMotionModelUncertainty
     //Returns the uncertainty in the motion model update
-    Eigen::MatrixXd getMotionModelUncertainty();
+    Eigen::MatrixXd getMotionModelUncertainty(const control cIn);
 
     //setZeroPosition
     //Transforms the world reference frame to be zeroed at the new zero position (passed relative to the robot)
@@ -74,10 +76,10 @@ public:
 
     void arucoUpdate(const Eigen::Vector2d &arucoMarker);
 
-    void ekfCorrectionStep(const Eigen::VectorXd &kinectObstacles,
+    void ekfCorrectionStep(/*const Eigen::VectorXd &kinectObstacles,
                            const Eigen::Vector2d &previousS,
                            const Eigen::Vector2d &gamma,
-                           const Eigen::Vector2d &encoder,
+                           const Eigen::Vector2d &encoder,*/
                            const double &previousTheta,
                            const double &beta,
                            const Eigen::Vector2d &arucoMarker);
