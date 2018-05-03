@@ -33,6 +33,9 @@ public:
 
     Eigen::MatrixXd getState() const;
 
+    Eigen::MatrixXd getCov() const;
+
+
     //getRotationMat
     //Returns 2x2 rotation matrix describing the transformation from the world reference frame to the
     //robot reference frame

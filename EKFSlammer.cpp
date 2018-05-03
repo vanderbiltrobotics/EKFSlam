@@ -16,7 +16,7 @@ EKFSlammer::EKFSlammer(const Robot& r) : x(r.getActualPos()),
                                          cov(Eigen::Matrix3d::Constant(0)),
                                          g(Eigen::Vector2d::Constant(0)),
                                          n(0),
-                                         newFeatureThreshold(1),
+                                         newFeatureThreshold(20),
                                          TIME_STEP(0.02)
 {
     //cov(0,0) = std::numeric_limits<double>::max();
@@ -29,6 +29,11 @@ EKFSlammer::EKFSlammer(const Robot& r) : x(r.getActualPos()),
 Eigen::MatrixXd EKFSlammer::getState() const
 {
     return x;
+}
+
+Eigen::MatrixXd EKFSlammer::getCov() const
+{
+    return cov;
 }
 
 
@@ -174,11 +179,11 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
     Q(1,0) = -0.0000052;
     Q(1,1) = 0.0002070;
 
-    std::cout << "Entering outer loop (iterating over input data)." << std::endl;
-    std::cout << "Size of input vector is " << z.rows() <<  std::endl;
+    //std::cout << "Entering outer loop (iterating over input data)." << std::endl;
+    //std::cout << "Size of input vector is " << z.rows() <<  std::endl;
     for(int i = 0; i < z.rows()/2; i++)
     {
-        std::cout << "Kinect Measurement #" << i << std::endl;
+        //std::cout << "Kinect Measurement #" << i << std::endl;
         //zCur stores the current measurement being operated on
         Eigen::Vector2d zCur;
         zCur(0) = (z(2*i));
@@ -213,18 +218,18 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
         double pi = newFeatureThreshold;
 
 
-        std::cout << "Entering inner (iterating over stored obstacles)." << std::endl;
+        //std::cout << "Entering inner (iterating over stored obstacles)." << std::endl;
         //Comparing the observed measurement to all stored obstacles.
         //The Mahalanobis distance between the measurement and existing obstacles is calculated.
         //The obstacle index is stored for the obstacle with minimum distance.
         for(int j = 0; j < n; j++)
         {
-            std::cout << "Stored Obstacle #" << j << std::endl;
+            //std::cout << "Stored Obstacle #" << j << std::endl;
             //delta stores the difference in expected position of landmark n and expected position of robot
             Eigen::Vector2d delta;
             //Add three to index to skip over (x,y,theta)
-            std::cout << "\n\n\n\nx: " << x.rows() << " " << 2*j+3 << " " << 2*j+4 << std::endl;
-            std::cout << "obstacle: " << x(2*j+3) << " " << x(2*j+4) << std::endl;
+            //std::cout << "\n\n\n\nx: " << x.rows() << " " << 2*j+3 << " " << 2*j+4 << std::endl;
+            //std::cout << "obstacle: " << x(2*j+3) << " " << x(2*j+4) << std::endl;
             delta << (x(2*j+3) - x(0)),
                     (x(2*j+4) - x(1));
 
@@ -269,14 +274,14 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
 
 
             //Calculating the Mahalanobis distance
-            std::cout << "zCur  " << std::endl << zCur << std::endl<< std::endl;
-            std::cout << "hTemp  " << std::endl << hTemp << std::endl<< std::endl;
-            std::cout << "psi  " << std::endl << psiTemp << std::endl<< std::endl;
-            std::cout << "psiInverse  " << std::endl << psiTemp.inverse() << std::endl<< std::endl;
+            //std::cout << "zCur  " << std::endl << zCur << std::endl<< std::endl;
+            //std::cout << "hTemp  " << std::endl << hTemp << std::endl<< std::endl;
+            //std::cout << "psi  " << std::endl << psiTemp << std::endl<< std::endl;
+            //std::cout << "psiInverse  " << std::endl << psiTemp.inverse() << std::endl<< std::endl;
 
 
             double piTemp = ((zCur-hTemp).transpose()*(psiTemp.inverse())*((zCur-hTemp)))(0,0);
-            std::cout << "PITEMP: " << piTemp << std::endl;
+            //std::cout << "PITEMP: " << piTemp << std::endl;
 
             //Minimum mahalanobis distance found
             //Update all values to store the data for the stored obstacle that produced the minimum distance
@@ -297,11 +302,27 @@ void EKFSlammer::kinectUpdate(const Eigen::VectorXd &z)
             //Resize state and covariance matrices
             x.conservativeResize(x.rows()+2);
             cov.conservativeResize(cov.rows()+2, cov.cols()+2);
+            for(int i = cov.rows()-3; i < cov.rows();i++)
+            {
+                for(int j = 0; j < cov.cols(); j++)
+                {
+                    cov(i,j) = 0;
+                }
+            }
+
+            for(int i = 0; i < cov.rows();i++)
+            {
+                for(int j = cov.cols()-3; j < cov.cols(); j++)
+                {
+                    cov(i,j) = 0;
+                }
+            }
+
 
 
             x(newObstInd + 3) = newObstX;
             x(newObstInd + 4) = newObstY;
-            std::cout << "ADDING NEW OBSTACLE============" << std::endl;
+            //std::cout << "ADDING NEW OBSTACLE============" << std::endl;
             std::cout << (newObstInd + 3) <<": " <<  x(newObstInd + 3) << std::endl;
             std::cout << (newObstInd + 4) <<": " << x(newObstInd + 4) << std::endl;
             std::cout << "x: " << x.rows() << " " << x.cols() << std::endl;
@@ -540,7 +561,7 @@ void EKFSlammer::ekfUpdate(const control &controlIn,
     //This is updating the prediction based on the data from the sensors. The observed values from the sensors
     //are compared to the predicted value from the previous step. Depending on error of the motion model
     //and the error of the sensor model, the update is weighted towards one or the other.
-    ekfCorrectionStep(kinectObstacles, previousS, gamma, encoder, previousTheta, beta, arucoMarker);
+    //ekfCorrectionStep(kinectObstacles, previousS, gamma, encoder, previousTheta, beta, arucoMarker);
 
 
 }
