@@ -43,45 +43,43 @@ private:
 
 
 public:
-    Robot(Eigen::Vector3d initPos): actualPos(initPos),
-                                    actualVelocity(Eigen::Vector2d::Constant(0)),
-                                    actualAcceleration(Eigen::Vector2d::Constant(0)),
-                                    vDistribution(0,0.05),
-                                    omegaDistribution(0,0.05),
-                                    kinectRDistribution(0, 0.015),
-                                    kinectThetaDistribution(0, 0.2617),
-                                    arucoXDistribution(0, 0.002687),
-                                    arucoYDistribution(0, 0.002687),
-                                    encoderVDistribution(0, 0.05),
-                                    encoderOmegaDistribution(0, 0.05),
-                                    gyroDistribution(0, 1),
-                                    accelerometerXDistribution(0, 1),
-                                    accelerometerYDistribution(0, 1),
-                                    generator(std::chrono::system_clock::now().time_since_epoch().count())
+    Robot(Eigen::Vector3d initPos) : actualPos(initPos),
+                                     actualVelocity(Eigen::Vector2d::Constant(0)),
+                                     actualAcceleration(Eigen::Vector2d::Constant(0)),
+                                     vDistribution(0,0.05),
+                                     omegaDistribution(0,0.05),
+                                     kinectRDistribution(0, 0.015),
+                                     kinectThetaDistribution(0, 0.2617),
+                                     arucoXDistribution(0, 0.002687),
+                                     arucoYDistribution(0, 0.002687),
+                                     encoderVDistribution(0, 0.05),
+                                     encoderOmegaDistribution(0, 0.05),
+                                     gyroDistribution(0, 0.000174),
+                                     accelerometerXDistribution(0, 1),
+                                     accelerometerYDistribution(0, 1),
+                                     generator(std::chrono::system_clock::now().time_since_epoch().count())
     {
-        //auto dice = std::bind ( kinectRDistribution, generator1);
+        
     }
 
-    Eigen::Vector3d getActualPos()
+    Eigen::Vector3d getActualPos() const
     {
         return actualPos;
     }
 
-    Eigen::Vector2d getActualVelocity()
+    Eigen::Vector2d getActualVelocity() const
     {
         return actualVelocity;
     }
 
-    Eigen::Vector3d getAcceleration()
+    Eigen::Vector2d getAcceleration() const
     {
-        return actualPos;
+        return actualAcceleration;
     }
 
-    void processControlInput(control in)
+    void input(control in)
     {
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::default_random_engine generator (seed);
-        if(in.v != 0 and in.omega != 0)
+        if(in.v != 0 && in.omega != 0)
         {
             actualVelocity(0) = in.v + vDistribution(generator);
             actualVelocity(1) = in.omega + omegaDistribution(generator);
@@ -91,7 +89,6 @@ public:
             actualVelocity(0) = 0;
             actualVelocity(1) = 0;
         }
-
     }
 
     void stepTime(double deltaT)
@@ -99,13 +96,21 @@ public:
         //Store angular position in variable theta for readability
         double theta = actualPos(2);
 
-        //Ratio of velocity to angular velocity used for motion model update
-        double vOmegaRatio = actualVelocity(0)/actualVelocity(1);
-
         //Calculate actual position of the robot based on the actual velocities
-        actualPos(0) += -vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + actualVelocity(1)*deltaT);
-        actualPos(1) += vOmegaRatio*cos(theta) - vOmegaRatio*cos(theta + actualVelocity(1)*deltaT);
-        actualPos(2) += actualVelocity(1)*deltaT;
+        if (actualVelocity(1) >= 0.00001)
+        {
+            //Ratio of velocity to angular velocity used for motion model update
+            double vOmegaRatio = actualVelocity(0) / actualVelocity(1);
+
+            actualPos(0) += -vOmegaRatio*sin(theta) + vOmegaRatio*sin(theta + actualVelocity(1)*deltaT);
+            actualPos(1) += vOmegaRatio*cos(theta) - vOmegaRatio*cos(theta + actualVelocity(1)*deltaT);
+            actualPos(2) += actualVelocity(1)*deltaT;
+        }
+        else
+        {
+            actualPos(0) += actualVelocity(0) * cos(theta) * deltaT;
+            actualPos(1) += actualVelocity(0) * sin(theta) * deltaT;
+        }
     }
 
     double getGyroMeasurement()
@@ -117,7 +122,7 @@ public:
     {
         Eigen::Vector2d errors;
         errors << accelerometerXDistribution(generator),
-                    accelerometerYDistribution(generator);
+                  accelerometerYDistribution(generator);
 
         return actualAcceleration + errors;
     }
@@ -128,7 +133,7 @@ public:
 
         Eigen::Vector2d errors;
         errors << arucoXDistribution(generator),
-                arucoYDistribution(generator);
+                  arucoYDistribution(generator);
 
         return errors;
     }
@@ -136,21 +141,20 @@ public:
 
     Eigen::VectorXd getKinectMeasurement(Eigen::VectorXd obstacles)
     {
-
-        Eigen::VectorXd estLocs = Eigen::VectorXd::Constant(obstacles.rows(), 1, 0);
-        for(int i = 0; i < obstacles.rows();i+=2)
+        Eigen::VectorXd estLocs = Eigen::VectorXd::Constant(obstacles.rows(), 0.0);
+        for (int i = 0; i < obstacles.rows(); i += 2)
         {
             Eigen::Vector2d delta;
             //Add three to index to skip over (x,y,theta)
-            delta << (obstacles(0) - actualPos(0)),
-                    (obstacles(1) - actualPos(1));
+            delta << (obstacles(i) - actualPos(0)),
+                     (obstacles(i+1) - actualPos(1));
 
             //Calculating distance between expected position of landmark and expected position of robot (r^2)
             double q = delta.dot(delta);
 
             //h stores the the predicted observation for the given landmark (range bearing).
             estLocs(i) = sqrt(q) + kinectRDistribution(generator);
-            estLocs(i+1) = atan2(delta(1),delta(0)) - actualPos(2) + kinectRDistribution(generator);
+            estLocs(i+1) = atan2(delta(1), delta(0)) - actualPos(2) + kinectThetaDistribution(generator);
         }
 
         return estLocs;
@@ -161,13 +165,10 @@ public:
     {
         Eigen::Vector2d errors;
         errors << encoderVDistribution(generator),
-                encoderOmegaDistribution(generator);
+                  encoderOmegaDistribution(generator);
 
         return actualVelocity + errors;
     }
-
-
-
 
 };
 

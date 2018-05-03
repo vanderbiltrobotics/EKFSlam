@@ -1,22 +1,24 @@
-#include <iostream>
+
 #include "EKFSlammer.h"
 #include "Eigen/Dense"
 #include "Utils.h"
 #include "Robot.h"
 #include <fstream>
+#include <iostream>
+#include <cmath>
 
 
 
 int main() {
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine generator (seed);
+    std::default_random_engine generator(seed);
 
-    Eigen::Vector3d initPos; initPos << 0,0,0;
+    Eigen::Vector3d initPos; initPos << 0, 0, M_PI/2.0;
 	Robot robot(initPos);
 
-    EKFSlammer slam;
+    EKFSlammer slam(robot);
 
-    Eigen::VectorXd map = Eigen::VectorXd::Constant(2,0);
+    Eigen::VectorXd map = Eigen::VectorXd::Constant(2, 0.0);
     map(0) = 0;
     map(1) = 5;
 
@@ -24,9 +26,9 @@ int main() {
     c.v = 1;
     c.omega = 1;
 
-    robot.processControlInput(c);
+    robot.input(c);
 
-    robot.stepTime(0.5);
+    robot.stepTime(0.02);
 
 
     slam.ekfUpdate(c,

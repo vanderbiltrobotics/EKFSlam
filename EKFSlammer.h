@@ -7,6 +7,7 @@
 
 #include "Eigen/Dense"
 #include "Utils.h"
+#include "Robot.h"
 
 class EKFSlammer {
 private:
@@ -23,26 +24,33 @@ private:
     //Mahalanobis distance threshold for classifying observed features as new
     double newFeatureThreshold;
 
+    //Time step for the state update 
+    const double TIME_STEP;
 
 public:
     //EKFSlammer
-    EKFSlammer();
+    EKFSlammer(const Robot &r);
 
-    Eigen::MatrixXd getState();
+    Eigen::MatrixXd getState() const;
 
     //getRotationMat
     //Returns 2x2 rotation matrix describing the transformation from the world reference frame to the
     //robot reference frame
-    Eigen::Matrix2d getRotationMat();
+    Eigen::Matrix2d getRotationMat() const;
 
     //getRotationMat
     //Returns 2x2 inverse rotation matrix the transformation from the robot's reference frame to the
     //world reference frame
-    Eigen::Matrix2d getRotationMatInverse();
+    Eigen::Matrix2d getRotationMatInverse() const;
 
     //getMotionModelUncertainty
     //Returns the uncertainty in the motion model update
-    Eigen::MatrixXd getMotionModelUncertainty(const control cIn);
+    Eigen::Matrix3d getMotionModelUncertainty(const control &cIn) const;
+
+    //motionModelUpdate
+    //Calculates the predicted position of the robot based on the command passed
+    //TODO: Add data type for passing command.
+    void motionModelUpdate(const double &deltaT, const control &controlIn);
 
     //setZeroPosition
     //Transforms the world reference frame to be zeroed at the new zero position (passed relative to the robot)
@@ -50,12 +58,7 @@ public:
 
     //getTimeStep
     //Returns the elpased time between time steps
-    double getTimeStep();
-
-    //motionModelUpdate
-    //Calculates the predicted position of the robot based on the command passed
-    //TODO: Add data type for passing command.
-    void motionModelUpdate(const double &deltaT, const control &controlIn);
+    double getTimeStep() const;
 
 
     //encoderUpdate, arucoUpdate, and kinectUpdate are all methods for the SLAM correction step
@@ -76,10 +79,10 @@ public:
 
     void arucoUpdate(const Eigen::Vector2d &arucoMarker);
 
-    void ekfCorrectionStep(/*const Eigen::VectorXd &kinectObstacles,
+    void ekfCorrectionStep(const Eigen::VectorXd &kinectObstacles,
                            const Eigen::Vector2d &previousS,
                            const Eigen::Vector2d &gamma,
-                           const Eigen::Vector2d &encoder,*/
+                           const Eigen::Vector2d &encoder,
                            const double &previousTheta,
                            const double &beta,
                            const Eigen::Vector2d &arucoMarker);
